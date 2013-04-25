@@ -25,7 +25,7 @@ elsif platform_family?("debian") and node['python']['install_method'] == 'packag
 elsif platform_family?("smartos")
   pip_binary = "/opt/local/bin/pip"
 else
-  pip_binary = "/usr/local/bin/pip"
+  pip_binary = "#{node['python']['prefix_dir']}/bin/pip"
 end
 
 # Ubuntu's python-setuptools, python-pip and python-virtualenv packages
