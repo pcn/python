@@ -61,6 +61,8 @@ Install packages using the new hotness in Python package management...[`pip`](ht
 - virtualenv: virtualenv environment to install pip package into
 - options: Add additional options to the underlying pip package command
 - timeout: timeout in seconds for the command to execute. Useful for pip packages that may take a long time to install. Default 900 seconds.
+- pypi_index: the url to use with install commands to pull from a particular pypi index.
+- requirements: provide a requirements file instead of a resource from the server
 
 # Example
 

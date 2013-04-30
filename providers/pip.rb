@@ -179,14 +179,18 @@ def pip_cmd(subcommand, version='')
   else
     resource_name = "#{new_resource.name}"
   end
+
+  pypi_index = "--index  #{new_resource.pypi_index}"
   # The following commands don't support the index option
   if ['uninstall', 'freeze', 'show', 'zip', 'unzip'].include?(subcommand) 
     pypi_index = ''
-  else  # The rest do
-    pypi_index = "--index  #{new_resource.pypi_index}"
   end
-  shell_out!("#{which_pip(new_resource)} #{subcommand} #{pypi_index} #{new_resource.options} #{resource_name}", options)
-
+  requirements = ''
+  # The install command supports a requirements file.
+  if ['install'].include?(subcommand) and new_resource.requirements != ''
+    requirements = "-r  #{new_resource.requirements}"
+  end
+  shell_out!("#{which_pip(new_resource)} #{subcommand} #{pypi_index} #{requirements} #{new_resource.options} #{resource_name}", options)
 end
 
 # TODO remove when provider is moved into Chef core
