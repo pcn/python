@@ -48,7 +48,7 @@ Install packages using the new hotness in Python package management...[`pip`](ht
 # Actions
 
 - :install: Install a pip package - if version is provided, install that specific version (default)
-- :upgrade: Upgrade a pip package - if version is provided, upgrade to that specific version
+- :upgrade: Upgrade a pip package - if version is provided, upgrade to that specific version otherwise to the most recent version.
 - :remove: Remove a pip package
 - :user: User to run pip as, for using with virtualenv
 - :group: Group to run pip as, for using with virtualenv
@@ -146,7 +146,8 @@ Installs Python from source.
 pip
 ---
 
-Installs `pip` from source.
+Installs `pip` from source.  It's always recommended to use this in a
+virtualenv.
 
 virtualenv
 ----------

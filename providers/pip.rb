@@ -52,8 +52,10 @@ action :install do
 end
 
 action :upgrade do
+  Chef::Log.debug("current resource: #{current_resource.version}   candidate_version = #{candidate_version}")
   if current_resource.version != candidate_version
     orig_version = current_resource.version || "uninstalled"
+    Chef::Log.debug("Current version of #{current_resource} is #{orig_version}")
     description = "upgrade #{current_resource} version from #{current_resource.version} to #{candidate_version}"
     converge_by(description) do
       Chef::Log.info("Upgrading #{new_resource} version from #{orig_version} to #{candidate_version}")
@@ -114,17 +116,38 @@ def current_installed_version
       delimeter = /\s/
       version_check_cmd = "pip --version"
     end
+    Chef::Log.debug("Checking with #{version_check_cmd}")
     result = shell_out(version_check_cmd)
-    (result.exitstatus == 0) ? result.stdout.split(delimeter)[1].strip : nil
+    result_stdout = result.stdout
+    
+    Chef::Log.debug("Result of version_check_cmd:  #{result_stdout}") # 
+    (result.exitstatus == 0) ? result_stdout.split(delimeter)[1].strip : nil
   end
 end
 
 def candidate_version
-  @candidate_version ||= begin
-    # `pip search` doesn't return versions yet
-    # `pip list` may be coming soon:
-    # https://bitbucket.org/ianb/pip/issue/197/option-to-show-what-version-would-be
-    new_resource.version||'latest'
+  @candidate_version ||= \
+  begin
+    # Using 'pip list' is inconsistently useful/useless and 
+    # doesn't work in the older versions of pip.  This does.
+    candidate_version_check_cmd = <<EOF
+#{which_python(new_resource)} -c "
+import sys
+from pip.index import PackageFinder
+from pip.req import InstallRequirement
+req = InstallRequirement.from_line('#{new_resource.name}', None)
+pf = PackageFinder(find_links=[], index_urls=['#{new_resource.pypi_index}'], mirrors=[])
+sys.stdout.write(pf.find_requirement(req, False).splitext()[0].split('-')[-1])"
+EOF
+    Chef::Log.debug("The check_cmd is #{candidate_version_check_cmd}")
+    result = shell_out(candidate_version_check_cmd)
+    result_stdout = result.stdout
+    return_this = 'latest'
+    if (result.exitstatus == 0) 
+      return_this = result_stdout
+    end
+    Chef::Log.debug("Result of candidate_version for #{new_resource.package_name} is #{return_this}")
+    return_this
   end
 end
 
@@ -133,8 +156,6 @@ def install_package(version)
   # or from a VCS (ex. git+https://git.repo/some_pkg.git) then do not append a version as this will break the source link
   if version == 'latest' || new_resource.name.downcase.start_with?('http:', 'https:') || ['git', 'hg', 'svn'].include?(new_resource.name.downcase.split('+')[0])
     version = ''
-  else
-    version = "==#{version}"
   end
   pip_cmd('install', version)
 end
@@ -152,7 +173,20 @@ end
 def pip_cmd(subcommand, version='')
   options = { :timeout => new_resource.timeout, :user => new_resource.user, :group => new_resource.group }
   options[:environment] = { 'HOME' => ::File.expand_path("~#{new_resource.user}") } if new_resource.user
-  shell_out!("#{which_pip(new_resource)} #{subcommand} #{new_resource.options} #{new_resource.name}#{version}", options)
+  if version != ''
+    Chef::Log.debug("The subcommand + version passed into pip_cmd is #{subcommand} + #{version}")
+    resource_name = "#{new_resource.name}==#{version}"
+  else
+    resource_name = "#{new_resource.name}"
+  end
+  # The following commands don't support the index option
+  if ['uninstall', 'freeze', 'show', 'zip', 'unzip'].include?(subcommand) 
+    pypi_index = ''
+  else  # The rest do
+    pypi_index = "--index  #{new_resource.pypi_index}"
+  end
+  shell_out!("#{which_pip(new_resource)} #{subcommand} #{pypi_index} #{new_resource.options} #{resource_name}", options)
+
 end
 
 # TODO remove when provider is moved into Chef core
@@ -166,3 +200,15 @@ def which_pip(nr)
     'pip'
   end
 end
+
+# Use the same rules as which_pip to find the corresponding python
+def which_python(nr)
+    if (new_resource.respond_to?("virtualenv") && new_resource.virtualenv)
+      python = ::File.join(new_resource.virtualenv,'/bin/python')
+    elsif node['python']['install_method'].eql?("source")
+      python = ::File.join(node['python']['prefix_dir'], "/bin/python")
+    else
+      python = 'python'
+    end
+end
+
