@@ -98,6 +98,16 @@ def load_current_resource
   @current_resource = Chef::Resource::PythonPip.new(new_resource.name)
   @current_resource.package_name(new_resource.package_name)
   @current_resource.version(nil)
+  @normalized_name ||= \
+  begin
+    # This regex is based on the source code for pip's pip/util.rb, in
+    # _normalize_name().  The _normalize_re that's used in the module,
+    # however, would appear to turn e.g. "foo.bar" into "foo-bar".
+    # However, if you have foo.bar installed, "pip freeze" or "pip
+    # list" will show you "foo.bar" and not "foo-bar".  So "." is
+    # being added to this regex.
+    new_resource.name.downcase.gsub(/[^a-z.0-9]/, '-')
+  end
 
   unless current_installed_version.nil?
     @current_resource.version(current_installed_version)
@@ -110,7 +120,7 @@ def current_installed_version
   @current_installed_version ||= begin
     delimeter = /==/
 
-    version_check_cmd = "#{which_pip(new_resource)} freeze | grep -i '^#{new_resource.package_name}=='"
+    version_check_cmd = "#{which_pip(new_resource)} freeze | grep -i '^#{@normalized_name}=='"
     # incase you upgrade pip with pip!
     if new_resource.package_name.eql?('pip')
       delimeter = /\s/
@@ -135,7 +145,7 @@ def candidate_version
 import sys
 from pip.index import PackageFinder
 from pip.req import InstallRequirement
-req = InstallRequirement.from_line('#{new_resource.name}', None)
+req = InstallRequirement.from_line('#{new_resource.package_name}', None)
 pf = PackageFinder(find_links=[], index_urls=['#{new_resource.pypi_index}'], mirrors=[])
 sys.stdout.write(pf.find_requirement(req, False).splitext()[0].split('-')[-1])"
 EOF
@@ -146,7 +156,7 @@ EOF
     if (result.exitstatus == 0) 
       return_this = result_stdout
     end
-    Chef::Log.debug("Result of candidate_version for #{new_resource.package_name} is #{return_this}")
+    Chef::Log.debug("Result of candidate_version for #{new_resource.package_name} (#{@normalized_name}) is #{result_stdout}")
     return_this
   end
 end
