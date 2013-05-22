@@ -104,8 +104,8 @@ def load_current_resource
     # _normalize_name().  The _normalize_re that's used in the module,
     # however, would appear to turn e.g. "foo.bar" into "foo-bar".
     # However, if you have foo.bar installed, "pip freeze" or "pip
-    # list" will show you "foo.bar" and not "foo-bar".  So "." is
-    # being added to this regex.
+    # list" will show you "foo.bar" and not "foo-bar".  So "." and
+    # "0-9" are being added to this regex.
     new_resource.name.downcase.gsub(/[^a-z.0-9]/, '-')
   end
 
@@ -124,13 +124,13 @@ def current_installed_version
     # incase you upgrade pip with pip!
     if new_resource.package_name.eql?('pip')
       delimeter = /\s/
-      version_check_cmd = "pip --version"
+      version_check_cmd = "#{which_pip(new_resource)} --version"
     end
     Chef::Log.debug("Checking with #{version_check_cmd}")
     result = shell_out(version_check_cmd)
     result_stdout = result.stdout
-    
-    Chef::Log.debug("Result of version_check_cmd:  #{result_stdout}") # 
+
+    Chef::Log.debug("Result of version_check_cmd:  #{result_stdout}") #
     (result.exitstatus == 0) ? result_stdout.split(delimeter)[1].strip : nil
   end
 end
@@ -138,7 +138,7 @@ end
 def candidate_version
   @candidate_version ||= \
   begin
-    # Using 'pip list' is inconsistently useful/useless and 
+    # Using 'pip list' is inconsistently useful/useless and
     # doesn't work in the older versions of pip.  This does.
     candidate_version_check_cmd = <<EOF
 #{which_python(new_resource)} -c "
@@ -153,7 +153,7 @@ EOF
     result = shell_out(candidate_version_check_cmd)
     result_stdout = result.stdout
     return_this = 'latest'
-    if (result.exitstatus == 0) 
+    if (result.exitstatus == 0)
       return_this = result_stdout
     end
     Chef::Log.debug("Result of candidate_version for #{new_resource.package_name} (#{@normalized_name}) is #{result_stdout}")
@@ -192,15 +192,10 @@ def pip_cmd(subcommand, version='')
 
   pypi_index = "--index  #{new_resource.pypi_index}"
   # The following commands don't support the index option
-  if ['uninstall', 'freeze', 'show', 'zip', 'unzip'].include?(subcommand) 
+  if ['uninstall', 'freeze', 'show', 'zip', 'unzip'].include?(subcommand)
     pypi_index = ''
   end
-  requirements = ''
-  # The install command supports a requirements file.
-  if ['install'].include?(subcommand) and new_resource.requirements != ''
-    requirements = "-r  #{new_resource.requirements}"
-  end
-  shell_out!("#{which_pip(new_resource)} #{subcommand} #{pypi_index} #{requirements} #{new_resource.options} #{resource_name}", options)
+  shell_out!("#{which_pip(new_resource)} #{subcommand} #{pypi_index} #{new_resource.options} #{resource_name}", options)
 end
 
 # TODO remove when provider is moved into Chef core
@@ -225,4 +220,3 @@ def which_python(nr)
       python = 'python'
     end
 end
-
