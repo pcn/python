@@ -21,17 +21,23 @@
 if platform_family?("rhel") and node['python']['install_method'] == 'package'
   pip_binary = "/usr/bin/pip"
 elsif platform_family?("debian") and node['python']['install_method'] == 'package'
-  pip_binary = "/usr/bin/pip"
+  # pip_binary = "/usr/bin/pip"
+  # In knewton, /usr/local/bin/pip is better
+  pip_binary = "/usr/local/bin/pip"
 elsif platform_family?("smartos")
   pip_binary = "/opt/local/bin/pip"
 else
-  pip_binary = "#{node['python']['prefix_dir']}/bin/pip"
+  # Test: make sure that pip_binary points to an actual pip that's installed.
+    # XXX Confirm this is the behavior
+    # distribute_setup.py wil put this into /usr/local/bin the way
+    # it's invoked in the execute[install-pip] resource below
+  pip_binary = "/usr/local/bin/pip"
 end
 
 # Ubuntu's python-setuptools, python-pip and python-virtualenv packages
 # are broken...this feels like Rubygems!
 # http://stackoverflow.com/questions/4324558/whats-the-proper-way-to-install-pip-virtualenv-and-distribute-for-python
-# https://bitbucket.org/ianb/pip/issue/104/pip-uninstall-on-ubuntu-linux
+# https://github.com/pypa/pip/issues/6
 remote_file "#{Chef::Config[:file_cache_path]}/distribute_setup.py" do
   source node['python']['distribute_script_url']
   mode "0644"
